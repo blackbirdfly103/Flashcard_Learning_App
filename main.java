@@ -54,7 +54,12 @@ class FlashcardApp extends JFrame {
         JButton quitb = new JButton("Quit");
 
         String[] columnNames = {"#", "Question", "Answer"};
-        DefaultTableModel tableModel = new DefaultTableModel(columnNames, 0);
+        DefaultTableModel tableModel = new DefaultTableModel(columnNames, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return column != 0;
+            }
+        };
         JTable table = new JTable(tableModel);
 
         ArrayList<Card> cards = deck.getCards();
@@ -62,6 +67,24 @@ class FlashcardApp extends JFrame {
             Card c = cards.get(i);
             tableModel.addRow(new Object[]{i + 1, c.getQuestion(), c.getAnswer()});
         }
+
+        tableModel.addTableModelListener(e -> {
+            if (e.getType() == javax.swing.event.TableModelEvent.UPDATE) {
+                int row = e.getFirstRow();
+                int column = e.getColumn();
+                if (row >= 0 && column > 0) { // Ignore numbering column
+                    String updatedValue = (String) tableModel.getValueAt(row, column);
+                    Card card = deck.getCards().get(row);
+                    if (column == 1) { // Question updated
+                        card = new Card(updatedValue, card.getAnswer());
+                    } else if (column == 2) { // Answer updated
+                        card = new Card(card.getQuestion(), updatedValue);
+                    }
+                    deck.getCards().set(row, card);
+                    FileHandler.saveCards(deck.getCards());
+                }
+            }
+        });
 
         saveb.addActionListener(e -> {
             String q = questionField.getText().trim();
@@ -117,6 +140,7 @@ class FlashcardApp extends JFrame {
         revalidate();
         repaint();
     }
+
 
     private void showReviewPanel() {
         getContentPane().removeAll();
