@@ -1,6 +1,6 @@
 import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.awt.event.*;
 import java.io.*;
 import java.util.*;
 
@@ -13,7 +13,7 @@ class FlashcardApp extends JFrame {
 
     public FlashcardApp() {
         setTitle("Flashcard Learning App");
-        setSize(400, 300);
+        setSize(550, 450);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         deck = new Deck();
@@ -24,16 +24,21 @@ class FlashcardApp extends JFrame {
 
     private void showMainMenu() {
         getContentPane().removeAll();
-        JButton inputButton = new JButton("Add Flashcards");
-        JButton reviewButton = new JButton("Review Flashcards");
 
-        inputButton.addActionListener(e -> showInputPanel());
-        reviewButton.addActionListener(e -> showReviewPanel());
+        JButton inB = new JButton("Add/Remove Flashcards");
+        JButton revB = new JButton("Review Flashcards");
+        JButton qB = new JButton("Quit");
 
-        JPanel panel = new JPanel(new GridLayout(2, 1));
-        panel.add(inputButton);
-        panel.add(reviewButton);
-        add(panel);
+        inB.addActionListener(e -> showInputPanel());
+        revB.addActionListener(e -> showReviewPanel());
+        qB.addActionListener(e -> System.exit(0));
+
+        JPanel panel = new JPanel(new GridLayout(3, 1));
+        panel.add(inB);
+        panel.add(revB);
+        panel.add(qB);
+
+        add(panel, BorderLayout.CENTER);
         revalidate();
         repaint();
     }
@@ -43,31 +48,72 @@ class FlashcardApp extends JFrame {
 
         questionField = new JTextField(20);
         answerField = new JTextField(20);
-        JButton saveButton = new JButton("Save Card");
-        JButton backButton = new JButton("Back");
+        JButton saveb = new JButton("Save Card");
+        JButton removeb = new JButton("Remove Selected Card");
+        JButton backb = new JButton("Back");
+        JButton quitb = new JButton("Quit");
 
-        saveButton.addActionListener(e -> {
-            String q = questionField.getText();
-            String a = answerField.getText();
+        String[] columnNames = {"#", "Question", "Answer"};
+        DefaultTableModel tableModel = new DefaultTableModel(columnNames, 0);
+        JTable table = new JTable(tableModel);
+
+        ArrayList<Card> cards = deck.getCards();
+        for (int i = 0; i < cards.size(); i++) {
+            Card c = cards.get(i);
+            tableModel.addRow(new Object[]{i + 1, c.getQuestion(), c.getAnswer()});
+        }
+
+        saveb.addActionListener(e -> {
+            String q = questionField.getText().trim();
+            String a = answerField.getText().trim();
             if (!q.isEmpty() && !a.isEmpty()) {
-                deck.addCard(new Card(q, a));
+                Card newCard = new Card(q, a);
+                deck.addCard(newCard);
                 FileHandler.saveCards(deck.getCards());
+                tableModel.addRow(new Object[]{tableModel.getRowCount() + 1, q, a});
                 questionField.setText("");
                 answerField.setText("");
             }
         });
 
-        backButton.addActionListener(e -> showMainMenu());
+        removeb.addActionListener(e -> {
+            int selectedRow = table.getSelectedRow();
+            if (selectedRow != -1) {
+                deck.getCards().remove(selectedRow);
+                FileHandler.saveCards(deck.getCards());
+                tableModel.removeRow(selectedRow);
 
-        JPanel inputPanel = new JPanel(new GridLayout(6, 1));
-        inputPanel.add(new JLabel("Question:"));
+                // Update numbering
+                for (int i = 0; i < tableModel.getRowCount(); i++) {
+                    tableModel.setValueAt(i + 1, i, 0);
+                }
+            }
+        });
+
+        backb.addActionListener(e -> showMainMenu());
+        quitb.addActionListener(e -> System.exit(0));
+
+        JPanel inputPanel = new JPanel(new GridLayout(2, 2));
+        inputPanel.add(new JLabel("                             Question:"));
         inputPanel.add(questionField);
-        inputPanel.add(new JLabel("Answer:"));
+        inputPanel.add(new JLabel("                             Answer:"));
         inputPanel.add(answerField);
-        inputPanel.add(saveButton);
-        inputPanel.add(backButton);
 
-        add(inputPanel);
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.add(saveb);
+        buttonPanel.add(removeb);
+        buttonPanel.add(backb);
+        buttonPanel.add(quitb);
+
+        JScrollPane scrollPane = new JScrollPane(table);
+        scrollPane.setPreferredSize(new Dimension(500, 150));
+
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.add(inputPanel, BorderLayout.NORTH);
+        mainPanel.add(scrollPane, BorderLayout.CENTER);
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+
+        add(mainPanel);
         revalidate();
         repaint();
     }
@@ -75,25 +121,24 @@ class FlashcardApp extends JFrame {
     private void showReviewPanel() {
         getContentPane().removeAll();
 
-        displayLabel = new JLabel("Click 'Flip' to see the answer", SwingConstants.CENTER);
-        JButton flipButton = new JButton("Flip");
-        JButton nextButton = new JButton("Next");
-        JButton prevButton = new JButton("Previous");
-        JButton backButton = new JButton("Back");
+        displayLabel = new JLabel("", SwingConstants.CENTER);
+        displayLabel.setFont(new Font("Arial", Font.PLAIN, 16));
 
-        flipButton.addActionListener(e -> {
+        JButton flip = new JButton("Flip");
+        JButton next = new JButton("Next");
+        JButton prev = new JButton("Previous");
+        JButton back = new JButton("Back");
+        JButton quit = new JButton("Quit");
+
+        flip.addActionListener(e -> {
             Card current = deck.getCurrentCard();
             if (current != null) {
-                if (showingQuestion) {
-                    displayLabel.setText(current.getAnswer());
-                } else {
-                    displayLabel.setText(current.getQuestion());
-                }
+                displayLabel.setText(showingQuestion ? current.getAnswer() : current.getQuestion());
                 showingQuestion = !showingQuestion;
             }
         });
 
-        nextButton.addActionListener(e -> {
+        next.addActionListener(e -> {
             deck.nextCard();
             Card current = deck.getCurrentCard();
             if (current != null) {
@@ -102,7 +147,7 @@ class FlashcardApp extends JFrame {
             }
         });
 
-        prevButton.addActionListener(e -> {
+        prev.addActionListener(e -> {
             deck.prevCard();
             Card current = deck.getCurrentCard();
             if (current != null) {
@@ -111,19 +156,26 @@ class FlashcardApp extends JFrame {
             }
         });
 
-        backButton.addActionListener(e -> showMainMenu());
+        back.addActionListener(e -> showMainMenu());
+        quit.addActionListener(e -> System.exit(0));
 
         JPanel buttonPanel = new JPanel();
-        buttonPanel.add(prevButton);
-        buttonPanel.add(flipButton);
-        buttonPanel.add(nextButton);
-        buttonPanel.add(backButton);
+        buttonPanel.add(prev);
+        buttonPanel.add(flip);
+        buttonPanel.add(next);
+        buttonPanel.add(back);
+        buttonPanel.add(quit);
 
         add(displayLabel, BorderLayout.CENTER);
         add(buttonPanel, BorderLayout.SOUTH);
 
-        if (deck.getCurrentCard() != null)
-            displayLabel.setText(deck.getCurrentCard().getQuestion());
+        Card current = deck.getCurrentCard();
+        if (current != null) {
+            displayLabel.setText(current.getQuestion());
+            showingQuestion = true;
+        } else {
+            displayLabel.setText("No flashcards available.");
+        }
 
         revalidate();
         repaint();
@@ -133,7 +185,7 @@ class FlashcardApp extends JFrame {
         SwingUtilities.invokeLater(() -> new FlashcardApp().setVisible(true));
     }
 
-    // -------------------- Inner Classes --------------------
+//belly
 
     static class Card {
         private String question;
@@ -168,7 +220,7 @@ class FlashcardApp extends JFrame {
 
     class Deck {
         private ArrayList<Card> cards = new ArrayList<>();
-        private int currentIndex = 0;
+        private int currentindex = 0;
 
         public void addCard(Card card) {
             cards.add(card);
@@ -180,15 +232,15 @@ class FlashcardApp extends JFrame {
 
         public Card getCurrentCard() {
             if (cards.isEmpty()) return null;
-            return cards.get(currentIndex);
+            return cards.get(currentindex);
         }
 
         public void nextCard() {
-            if (!cards.isEmpty()) currentIndex = (currentIndex + 1) % cards.size();
+            if (!cards.isEmpty()) currentindex = (currentindex + 1) % cards.size();
         }
 
         public void prevCard() {
-            if (!cards.isEmpty()) currentIndex = (currentIndex - 1 + cards.size()) % cards.size();
+            if (!cards.isEmpty()) currentindex = (currentindex - 1 + cards.size()) % cards.size();
         }
     }
 
@@ -220,3 +272,4 @@ class FlashcardApp extends JFrame {
         }
     }
 }
+
